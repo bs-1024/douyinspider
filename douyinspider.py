@@ -48,15 +48,18 @@ class DouyinSpider(object):
             for li in li_list:
                 item = {}
                 item["title"] = li.xpath("./a/span/text()")[0]
+                print(item['title'])
                 detail_url = li.xpath("./a/@onclick")[0][6:-1].split(",")[-1]
-                print(detail_url)
                 resp = requests.get(eval(detail_url), headers=self.headers)
+                print(resp.status_code)
                 html = etree.HTML(resp.content.decode())
-                if html.xpath("//video/@src")[0]:
+                try:
                     video_src = html.xpath("//video/@src")[0]
-                else:
+                    if video_src is None:
+                        continue
+                    print(video_src)
+                except Exception:
                     continue
-                print(video_src)
                 resp = requests.get(video_src, headers=self.headers)
                 item['content'] = resp.content
                 music_list.append(item)
@@ -64,12 +67,14 @@ class DouyinSpider(object):
             self.html_queue.task_done()
 
     def download_music(self):
-        music_list = self.content_list_queue.get()
-        for item in music_list:
-            _full_name = os.path.join(self.file_path(), item['title'])
-            with open(_full_name + '.mp4', "wb") as f:
-                f.write(item['content'])
-                print("ok")
+        while True:
+            music_list = self.content_list_queue.get()
+            for item in music_list:
+                _full_name = os.path.join(self.file_path(), item['title'])
+                with open(_full_name + '.mp4', "wb") as f:
+                    f.write(item['content'])
+                    print("ok")
+            self.content_list_queue.task_done()
 
     def run(self):
         thread_list = []
@@ -77,7 +82,7 @@ class DouyinSpider(object):
         t_url = threading.Thread(target=self.get_url_list)
         thread_list.append(t_url)
         # 2.发送请求，获取响应
-        for i in range(4):
+        for i in range(10):
             t_parse = threading.Thread(target=self.parse_url)
             thread_list.append(t_parse)
 
